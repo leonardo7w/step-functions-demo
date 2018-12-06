@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Globals:
+    Function:
+        Runtime: dotnetcore2.1
+        Timeout: 30
+        Tracing: Active
+        Tags:
+            Project: StepFunctionsDemo
+
+Resources:
+
+    ExecuteFirstTaskFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            CodeUri: ./artifacts/ExecuteFirstTask.zip
+            Handler: ExecuteFirstTask::ExecuteFirstTask.Function::FunctionHandler
+
+    ExecuteSecondTaskFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            CodeUri: ./artifacts/ExecuteSecondTask.zip
+            Handler: ExecuteSecondTask::ExecuteSecondTask.Function::FunctionHandler
+
+    StateMachine:
+        Type: "AWS::StepFunctions::StateMachine"
+        Properties:
+            StateMachineName: StepFunctionsDotNetCoreDemo
+            RoleArn: !GetAtt StepFunctionsServiceRole.Arn
+            DefinitionString: !Sub |-
+                {
+                "StartAt": "ExecuteFirstTask",
+                    "Comment": "Step Functions Demo",
+                    "States": {
+                        "ExecuteFirstTask": {
+                            "Type": "Task",
+                            "Resource": "${ExecuteFirstTaskFunction.Arn}",
+                            "Next": "WaitToActivate"
+                        },
+                        "WaitToActivate": {
+                            "Type": "Wait",
+                            "SecondsPath": "$.WaitInSeconds",
+                            "Next": "ExecuteSecondTask"
+                        },
+                        "ExecuteSecondTask": {
+                            "Type": "Task",
+                            "Resource": "${ExecuteSecondTaskFunction.Arn}",
+                            "End": true
+                        }
+                    }
+                }
+
+    StepFunctionsServiceRole:
+        Type: "AWS::IAM::Role"
+        Properties:
+            Path: !Join ["", ["/", !Ref "AWS::StackName", "/"]]
+            ManagedPolicyArns:
+                - "arn:aws:iam::aws:policy/AWSStepFunctionsFullAccess"
+            AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement:
+                    -
+                        Sid: "AllowStepFunctionsServiceToAssumeRole"
+                        Effect: "Allow"
+                        Action: 
+                            - "sts:AssumeRole"
+                        Principal:
+                            Service:
+                                - !Sub "states.${AWS::Region}.amazonaws.com"
+            Policies:
+                -   PolicyName: "CallLambdaFunctions"
+                    PolicyDocument:
+                        Version: '2012-10-17'
+                        Statement:
+                            -   Effect: "Allow"
+                                Action:
+                                    - "lambda:InvokeFunction"
+                                Resource: 
+                                    - !Sub ${ExecuteFirstTaskFunction.Arn}
+                                    - !Sub ${ExecuteSecondTaskFunction.Arn}
+   
+Outputs:
+    StepFunctionsStateMachine:
+        Value: !Ref StateMachine
+    
+    ExecuteFirstTaskFunctionArn:
+        Value: !GetAtt ExecuteFirstTaskFunction.Arn
+    
+    ExecuteSecondTaskFunctionArn:
+        Value: !GetAtt ExecuteSecondTaskFunction.Arn

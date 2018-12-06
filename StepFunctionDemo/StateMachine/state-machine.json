@@ -1,0 +1,23 @@
+{
+    "StartAt": "ExecuteFirstTask",
+    "Comment": "Step Functions Demo",
+    "States": {
+        "ExecuteFirstTask": {
+            "Type": "Task",
+            "Comment": "Anonymise candidate information on the DB.",
+            "Resource": "${ExecuteFirstTaskFunction.Arn}",
+            "Next": "WaitToActivate"
+        },
+      "WaitToActivate": {
+        "Type": "Wait",
+        "SecondsPath": "$.WaitInSeconds",
+        "Next": "ExecuteSecondTask"
+      },
+        "ExecuteSecondTask": {
+            "Type": "Task",
+            "Comment": "Send email confirmation to the candidate when the data has been deleted.",
+            "Resource": "${ExecuteSecondTaskFunction.Arn}",
+            "End": true
+        }
+    }
+}
